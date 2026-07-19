@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detail Siswa — Arsip Siswa</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="app-layout">
+        <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="toggleSidebar()"></div>
+        <aside class="sidebar" id="sidebar"></aside>
+        <main class="main-content">
+            <div class="mobile-header-bar">
+                <button class="mobile-toggle" onclick="toggleSidebar()">☰</button>
+                <h2 style="font-size:1.1rem; margin:0;" id="mobilePageTitle">Profil Siswa</h2>
+                <div style="width:24px;"></div>
+            </div>
+            <div class="page-header">
+                <div style="display:flex;align-items:center;gap:1rem;">
+                    <button class="btn btn-ghost" onclick="window.location.href='dashboard.html'">← Kembali</button>
+                    <h1 id="pageTitle">Detail Siswa</h1>
+                </div>
+                <button id="btnEditProfil" class="btn btn-secondary" onclick="openEditProfil()" style="display:none;">✏️ Edit Biodata</button>
+            </div>
+
+            <!-- Profile Card -->
+            <div class="card" style="margin-bottom:1.5rem;" id="profileCard">
+                <div class="loading"><div class="spinner"></div></div>
+            </div>
+
+            <!-- Tabs for detail sections -->
+            <div class="tabs" style="margin-bottom:0;">
+                <button class="tab-btn active" onclick="switchDetailTab('dokumen',this)">📁 Dokumen</button>
+            </div>
+
+            <!-- Tab: Dokumen -->
+            <div class="tab-content active" id="tab-dokumen" style="padding-top:1.5rem;">
+                <div class="docs-grid" id="docsGrid"><div class="loading"><div class="spinner"></div></div></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Batch Scanning Wizard Overlay -->
+    <div id="wizardOverlay" style="display:none; position:fixed; bottom:0; left:0; right:0; background:var(--accent-gradient); color:white; padding:1rem; z-index:50; box-shadow:0 -4px 15px rgba(0,0,0,0.1); flex-direction:column; gap:0.5rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div style="font-weight:600; font-size:1.1rem;" id="wizardStatusText">Scanning: ...</div>
+            <button class="btn btn-sm btn-ghost" style="color:white; background:rgba(255,255,255,0.2);" onclick="Wizard.stop()">⏹ Berhenti</button>
+        </div>
+        <div id="wizardDocText" style="font-size:0.9rem; opacity:0.9;">Meminta dokumen...</div>
+        <div style="display:flex; gap:0.5rem; overflow-x:auto; padding-top:0.5rem; margin-top:0.5rem; border-top:1px solid rgba(255,255,255,0.2);" id="wizardActions">
+            <!-- Buttons injected here -->
+        </div>
+    </div>
+
+    <!-- Upload Modal -->
+    <div class="modal-overlay" id="modalUpload">
+        <div class="modal">
+            <div class="modal-header"><h3 id="uploadTitle">Upload Dokumen</h3><button class="modal-close" onclick="Modal.close('modalUpload')">&times;</button></div>
+                <input type="hidden" id="uploadJenis">
+                
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+                    <div class="upload-area" style="padding:1.5rem 1rem;" onclick="document.getElementById('cameraInput').click()">
+                        <div class="upload-icon" style="font-size:2rem;margin-bottom:0.5rem;">📸</div>
+                        <p style="font-weight:600;">Kamera (Scan)</p>
+                    </div>
+                    <div class="upload-area" style="padding:1.5rem 1rem;" onclick="document.getElementById('fileInput').click()">
+                        <div class="upload-icon" style="font-size:2rem;margin-bottom:0.5rem;">📁</div>
+                        <p style="font-weight:600;">Pilih Galeri</p>
+                    </div>
+                </div>
+                
+                <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none" onchange="onFileSelected(this, true)">
+                <input type="file" id="fileInput" accept=".jpg,.jpeg,.png,.webp,.pdf" style="display:none" onchange="onFileSelected(this, false)">
+                
+                <div id="fileInfo" style="margin-top:1rem;display:none;">
+                    <div style="display:flex;align-items:center;gap:0.75rem;padding:0.75rem;background:var(--bg-primary);border-radius:var(--radius-sm);">
+                        <img id="filePreviewThumb" src="" style="width:40px;height:40px;object-fit:cover;border-radius:4px;display:none;">
+                        <span id="fileIconFallback">📎</span>
+                        <div style="flex:1;"><div id="fileName" style="font-size:0.85rem;font-weight:500;"></div><div id="fileSize" style="font-size:0.75rem;color:var(--text-muted);"></div></div>
+                        <button class="btn btn-ghost btn-sm" onclick="clearFile()">✕</button>
+                    </div>
+                </div>
+                <div class="upload-progress" id="uploadProgress">
+                    <div style="display:flex;align-items:center;gap:0.75rem;">
+                        <div class="progress-bar" style="flex:1;"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+                        <span id="progressText" style="font-size:0.8rem;color:var(--text-secondary);">0%</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="Modal.close('modalUpload')">Batal</button>
+                <button class="btn btn-primary" id="btnUpload" onclick="doUpload()" disabled>Upload</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Preview Modal -->
+    <div class="modal-overlay" id="modalPreview">
+        <div class="modal modal-lg">
+            <div class="modal-header">
+                <h3 id="previewTitle">Preview</h3>
+                <div style="display:flex;gap:0.5rem;">
+                    <button class="btn btn-secondary btn-sm" onclick="doDownload()">⬇ Download</button>
+                    <button class="btn btn-secondary btn-sm" onclick="doPrint()">🖨️ Cetak</button>
+                    <button class="modal-close" onclick="Modal.close('modalPreview')">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body" style="padding:0;">
+                <div class="preview-container" id="previewContainer"><div class="loading"><div class="spinner"></div></div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Biodata Modal -->
+    <div class="modal-overlay" id="modalEditProfil">
+        <div class="modal modal-lg" style="max-height:90vh;">
+            <div class="modal-header"><h3>Edit Biodata Siswa</h3><button class="modal-close" onclick="Modal.close('modalEditProfil')">&times;</button></div>
+            <div class="modal-body" style="max-height:70vh;overflow-y:auto;">
+                <form id="formEditProfil" onsubmit="saveProfile(event)">
+
+
+                    <!-- Edit: Data Pribadi -->
+                    <div class="tab-content active" id="tab-pribadi">
+                        <div class="form-group"><label>Nama Lengkap *</label><input type="text" id="epNama" class="form-input" required></div>
+                        <div class="form-group"><label>Kelas</label><select id="epKelas" class="form-select"></select></div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="Modal.close('modalEditProfil')">Batal</button>
+                <button class="btn btn-primary" onclick="document.getElementById('formEditProfil').requestSubmit()">💾 Simpan</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scanner Editor Modal -->
+    <div class="modal-overlay" id="modalScanner" style="z-index: 300;">
+        <div class="modal modal-lg" style="max-height: 100vh; height: 100vh; display: flex; flex-direction: column; border-radius: 0; margin: 0; max-width: 100%;">
+            <div class="modal-header" style="flex-shrink: 0;">
+                <h3 id="scannerTitle">Scanner Editor</h3>
+                <button class="btn btn-ghost btn-sm" onclick="cancelScan()">✕ Batal</button>
+            </div>
+            <div class="modal-body" style="flex: 1; padding: 0; background: #000; position: relative; display: flex; flex-direction: column; overflow: hidden;" id="scannerContainer">
+                <div id="scannerLoading" style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.8); z-index: 10; color: white;">
+                    <div class="spinner"></div>
+                    <p style="margin-top: 1rem;" id="scannerLoadingText">Memuat Editor Scanner...</p>
+                </div>
+                
+                <!-- Canvas for Image and Cropping -->
+                <div style="flex: 1; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center;" id="canvasWrapper">
+                    <canvas id="scannerCanvas" style="max-width: 100%; max-height: 100%; touch-action: none;"></canvas>
+                </div>
+
+                <!-- Scanner Toolbar -->
+                <div style="background: var(--bg-secondary); padding: 1rem; border-top: 1px solid var(--glass-border); flex-shrink: 0;">
+                    <div style="display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.5rem; margin-bottom: 0.5rem;">
+                        <button class="btn btn-secondary btn-sm active" onclick="setFilter('original')" id="btnFilterOrg">Asli</button>
+                        <button class="btn btn-secondary btn-sm" onclick="setFilter('magic')" id="btnFilterMag">Magic B&W</button>
+                        <button class="btn btn-secondary btn-sm" onclick="setFilter('grayscale')" id="btnFilterGray">Grayscale</button>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <button class="btn btn-secondary" onclick="rotateImage()">🔄 Rotasi</button>
+                        <button class="btn btn-primary" onclick="applyScan()">✅ Selesai</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/opencv_async.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/siswa.js"></script>
+    <script src="js/scanner.js"></script>
+    <script src="js/wizard.js"></script>
+</body>
+</html>
