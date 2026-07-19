@@ -18,10 +18,13 @@ const FIELD_MAP = {
     Auth.initSidebar(currentProfile, 'dashboard');
     Modal.init();
     const siswaId = Utils.getUrlParam('id');
-    if (!siswaId) { window.location.href = 'dashboard.html'; return; }
+    const wizardParam = Utils.getUrlParam('wizard');
+    if (!siswaId && !wizardParam) { window.location.href = 'dashboard.html'; return; }
     if (Auth.isAdmin(currentProfile)) document.getElementById('btnEditProfil').style.display = '';
-    await loadSiswa(siswaId);
-    await loadDokumen(siswaId);
+    if (siswaId) {
+        await loadSiswa(siswaId);
+        await loadDokumen(siswaId);
+    }
     setupDragDrop();
 })();
 
@@ -113,6 +116,7 @@ function onFileSelected(input, isCamera = false) {
     }
 
     selectedFile = file;
+    Modal.open('modalUpload'); // Ensure modal is open (especially when picking non-images from wizard)
     document.getElementById('fileInfo').style.display = '';
     document.getElementById('fileName').textContent = file.name;
     document.getElementById('fileSize').textContent = Utils.formatFileSize(file.size);
@@ -231,10 +235,47 @@ async function doDownloadDirect(fileId, fileName) {
         const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=data.fileName||fileName; a.click(); Toast.success('File diunduh');
     } catch(err) { Toast.error('Download gagal: '+err.message); }
 }
-function doPrint() {
-    const c=document.getElementById('previewContainer').innerHTML;
-    const w=window.open('','_blank'); w.document.write(`<html><head><title>Cetak</title><style>body{margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#fff;}img{max-width:100%;height:auto;}iframe{width:100%;height:100vh;border:none;}</style></head><body>${c}</body></html>`);
-    w.document.close(); w.onload=()=>w.print();
+
+async function doPrint() {
+    if (!currentPreviewFileId) return;
+    Toast.info('Membuat PDF...');
+    try {
+        const res = await fetch(`${APPS_SCRIPT_URL}?action=getFile&fileId=${currentPreviewFileId}`);
+        const data = await res.json(); 
+        if (!data.success) throw new Error(data.error);
+
+        let fileName = data.fileName || document.getElementById('previewTitle').textContent;
+
+        if (data.mimeType === 'application/pdf') {
+            // Jika sudah PDF, langsung unduh saja
+            doDownloadDirect(currentPreviewFileId, fileName);
+            return;
+        }
+
+        if (data.mimeType.startsWith('image/')) {
+            const img = new Image();
+            img.src = `data:${data.mimeType};base64,${data.fileData}`;
+            await new Promise(r => img.onload = r);
+
+            const { jsPDF } = window.jspdf;
+            const orientation = img.width > img.height ? 'l' : 'p';
+            const pdf = new jsPDF({
+                orientation: orientation,
+                unit: 'px',
+                format: [img.width, img.height]
+            });
+
+            pdf.addImage(img.src, data.mimeType === 'image/png' ? 'PNG' : 'JPEG', 0, 0, img.width, img.height);
+            
+            let pdfName = fileName.replace(/\.[^/.]+$/, "") + ".pdf";
+            pdf.save(pdfName);
+            Toast.success('PDF berhasil dibuat dan diunduh');
+        } else {
+            Toast.warning('Format ini tidak dapat dikonversi ke PDF');
+        }
+    } catch(err) { 
+        Toast.error('Gagal membuat PDF: ' + err.message); 
+    }
 }
 async function deleteDoc(docId, driveFileId, label) {
     if (!confirm(`Hapus dokumen "${label}"?`)) return;

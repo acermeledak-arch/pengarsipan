@@ -71,7 +71,11 @@ async function initScanner(file) {
 function cancelScan() {
     document.getElementById('modalScanner').classList.remove('active');
     document.body.style.overflow = '';
-    clearFile(); // clear the selected file
+    if (selectedFile) {
+        Modal.open('modalUpload');
+    } else {
+        clearFile(); // clear the selected file only if we didn't have one before
+    }
 }
 
 function initEditor() {
@@ -236,6 +240,12 @@ function setFilter(type) {
     if(type === 'original') document.getElementById('btnFilterOrg').classList.add('active');
     if(type === 'magic') document.getElementById('btnFilterMag').classList.add('active');
     if(type === 'grayscale') document.getElementById('btnFilterGray').classList.add('active');
+    
+    if (canvas) {
+        if(type === 'original') canvas.style.filter = 'none';
+        if(type === 'magic') canvas.style.filter = 'grayscale(100%) contrast(150%) brightness(110%)';
+        if(type === 'grayscale') canvas.style.filter = 'grayscale(100%)';
+    }
 }
 
 async function applyScan() {
@@ -274,6 +284,11 @@ async function applyScan() {
         thumb.src = webpDataUrl;
         thumb.style.display = 'block';
         document.getElementById('fileIconFallback').style.display = 'none';
+        
+        // Auto-upload if in wizard mode to prevent stopping at the next step and losing the file
+        if (typeof Wizard !== 'undefined' && Wizard.isActive) {
+            if (typeof doUpload === 'function') doUpload();
+        }
         
     } catch (e) {
         alert("Gagal memproses gambar: " + e.message);
@@ -371,6 +386,12 @@ function detectDocumentCorners(src) {
     
     let edged = new cv.Mat();
     cv.Canny(blurred, edged, 75, 200);
+
+    // Morphological closing to help connect broken edges of the document
+    let kernel = cv.Mat.ones(5, 5, cv.CV_8U);
+    cv.dilate(edged, edged, kernel, new cv.Point(-1, -1), 1, cv.BORDER_CONSTANT, cv.morphologyDefaultBorderValue());
+    cv.erode(edged, edged, kernel, new cv.Point(-1, -1), 1, cv.BORDER_CONSTANT, cv.morphologyDefaultBorderValue());
+    kernel.delete();
 
     let contours = new cv.MatVector();
     let hierarchy = new cv.Mat();

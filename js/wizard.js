@@ -48,9 +48,12 @@ const Wizard = {
         // Load student data into the page by silently updating URL & calling loadSiswa
         window.history.replaceState({}, '', `siswa.html?id=${student.id}&wizard=${this.classId}&index=${this.currentStudentIndex}`);
         
-        // loadSiswa internally calls loadDokumen and resolves when done
+        // loadSiswa loads the profile, and we also need to load documents
         if (typeof loadSiswa === 'function') {
             await loadSiswa(student.id);
+            if (typeof loadDokumen === 'function') {
+                await loadDokumen(student.id);
+            }
         }
         
         this.promptCurrentDoc();
